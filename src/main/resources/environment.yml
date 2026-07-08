@@ -1,0 +1,10 @@
+name: omnipose
+channels:
+  - conda-forge
+
+dependencies:
+  - python=3.10
+  - pip:
+    - torch>=2.3          # first version with numpy 2.x support
+    - torchvision>=0.18
+    - omnipose==1.1.4
