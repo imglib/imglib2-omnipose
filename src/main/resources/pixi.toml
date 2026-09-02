@@ -1,0 +1,92 @@
+[workspace]
+
+authors = ["Jean-Yves Tinevez", "Kevin Cutler"]
+# Based on the work of J. Mabon, G. Letort & S. Rigaud on Cellpose.
+
+channels = ["conda-forge"]
+name = "omnipose-appose"
+platforms = ["osx-arm64", "win-64", "linux-64"]
+version = "0.1.0"
+
+[dependencies]
+# Kevin's examples use Python 3.12.
+# Keeping <3.13 avoids possible Python 3.13 incompatibilities in scientific wheels.
+python = ">=3.12,<3.13"
+
+# Build/runtime helpers commonly needed by scientific Python packages installed from Git.
+pip = "*"
+packaging = "*"
+setuptools = "*"
+wheel = "*"
+hatchling = "*"
+cmake = "*"
+git = "*"
+
+# Helpful for packages relying on numba/llvmlite, common in cellpose/omnipose-like stacks.
+llvmlite = "*"
+
+[pypi-dependencies]
+appose = ">=0.10.1,<0.12"
+
+# Omnipose v2 commit provided by Kevin.
+omnipose = { git = "https://github.com/kevinjohncutler/omnipose.git", rev = "6c773851fc7d1f1ff4343423cc36f9f2f26f0c7b" }
+
+
+# -------------------------
+# CPU feature
+# -------------------------
+
+[feature.cpu.target.linux.pypi-dependencies]
+torch = { version = ">=2.9,<2.11", index = "https://download.pytorch.org/whl/cpu" }
+torchvision = { version = ">=0.24,<0.26", index = "https://download.pytorch.org/whl/cpu" }
+
+[feature.cpu.target.win.pypi-dependencies]
+torch = { version = ">=2.9,<2.11", index = "https://download.pytorch.org/whl/cpu" }
+torchvision = { version = ">=0.24,<0.26", index = "https://download.pytorch.org/whl/cpu" }
+
+[feature.cpu.target.osx-arm64.pypi-dependencies]
+torch = { version = ">=2.9,<2.11" }
+torchvision = { version = ">=0.24,<0.26" }
+
+# -------------------------
+# CUDA 12.6 feature
+# -------------------------
+
+[feature.cu126.target.linux.pypi-dependencies]
+torch = { version = ">=2.9,<2.11", index = "https://download.pytorch.org/whl/cu126" }
+torchvision = { version = ">=0.24,<0.26", index = "https://download.pytorch.org/whl/cu126" }
+
+[feature.cu126.target.win.pypi-dependencies]
+torch = { version = ">=2.9,<2.11", index = "https://download.pytorch.org/whl/cu126" }
+torchvision = { version = ">=0.24,<0.26", index = "https://download.pytorch.org/whl/cu126" }
+
+# macOS has no CUDA; use CPU wheels.
+[feature.cu126.target.osx-arm64.pypi-dependencies]
+torch = { version = ">=2.9,<2.11" }
+torchvision = { version = ">=0.24,<0.26" }
+
+# -------------------------
+# CUDA 13.0 feature
+# -------------------------
+
+[feature.cu130.target.linux.pypi-dependencies]
+torch = { version = ">=2.9,<2.11", index = "https://download.pytorch.org/whl/cu130" }
+torchvision = { version = ">=0.24,<0.26", index = "https://download.pytorch.org/whl/cu130" }
+
+[feature.cu130.target.win.pypi-dependencies]
+torch = { version = ">=2.9,<2.11", index = "https://download.pytorch.org/whl/cu130" }
+torchvision = { version = ">=0.24,<0.26", index = "https://download.pytorch.org/whl/cu130" }
+
+# macOS has no CUDA; use CPU wheels.
+[feature.cu130.target.osx-arm64.pypi-dependencies]
+torch = { version = ">=2.9,<2.11" }
+torchvision = { version = ">=0.24,<0.26" }
+
+[system-requirements]
+macos = "15.0"
+
+[environments]
+default = { features = ["cu126"] }
+omnipose-cpu = { features = ["cpu"] }
+omnipose-cu126 = { features = ["cu126"] }
+omnipose-cu130 = { features = ["cu130"] }
