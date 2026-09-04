@@ -95,7 +95,7 @@ def run_omnipose(
         rescale_factor=rescale_factor,
         normalize=kwargs.get("normalize", True),
         flow_threshold=kwargs.get("flow_threshold", 0.4),
-        cellprob_threshold=kwargs.get("cellprob_threshold", 0.0),
+        mask_threshold=kwargs.get("mask_threshold", 0.0),
         min_size=kwargs.get("min_size", 15),
         niter=kwargs.get("niter", None),
         tile_overlap=kwargs.get("tile_overlap", 0.1),
@@ -194,7 +194,7 @@ else:
     resample = True
     normalize = True
     flow_threshold = 0.4
-    cellprob_threshold = 0.0
+    mask_threshold = 0.0
     min_size = 15
     tile_overlap = 0.1
     flow3D_smooth = 0
@@ -225,7 +225,7 @@ result = run_omnipose(
         "resample": resample,
         "normalize": normalize,
         "flow_threshold": flow_threshold,
-        "cellprob_threshold": cellprob_threshold,
+        "mask_threshold": mask_threshold,
         "min_size": min_size,
         "tile_overlap": tile_overlap,
         "niter": niter,

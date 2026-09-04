@@ -29,7 +29,7 @@ public class OmniposeParameters
 
 	public final double flowThreshold;
 
-	public final double cellProbThreshold;
+	public final double maskThreshold;
 
 	// Normalization & pre-processing
 
@@ -71,7 +71,7 @@ public class OmniposeParameters
 			final boolean do3D,
 			final boolean normalize,
 			final double flowThreshold,
-			final double cellProbThreshold,
+			final double maskThreshold,
 			final boolean useGpu,
 			final double minSize,
 			final double anisotropy,
@@ -90,7 +90,7 @@ public class OmniposeParameters
 		this.do3D = do3D;
 		this.normalize = normalize;
 		this.flowThreshold = flowThreshold;
-		this.cellProbThreshold = cellProbThreshold;
+		this.maskThreshold = maskThreshold;
 		this.useGpu = useGpu;
 		this.minSize = minSize;
 		this.anisotropy = anisotropy;
@@ -149,7 +149,7 @@ public class OmniposeParameters
 		inputs.put( "resample", resample );
 		inputs.put( "normalize", normalize );
 		inputs.put( "flow_threshold", flowThreshold );
-		inputs.put( "cellprob_threshold", cellProbThreshold );
+		inputs.put( "mask_threshold", maskThreshold );
 		inputs.put( "min_size", minSize );
 		inputs.put( "tile_overlap", tileOverlap );
 		inputs.put( "flow3D_smooth", flow3dSmooth );
@@ -176,7 +176,7 @@ public class OmniposeParameters
 
 		private double flowThreshold = 0.4;
 
-		private double cellProbThreshold = 0.0;
+		private double maskThreshold = 0.0;
 
 		// Normalization & pre-processing
 
@@ -246,9 +246,9 @@ public class OmniposeParameters
 			return this;
 		}
 
-		public Builder cellProbThreshold( final double cellProbThreshold )
+		public Builder maskThreshold( final double maskThreshold )
 		{
-			this.cellProbThreshold = cellProbThreshold;
+			this.maskThreshold = maskThreshold;
 			return this;
 		}
 
@@ -322,7 +322,7 @@ public class OmniposeParameters
 		{
 			return new OmniposeParameters(
 					model, channels, customModel, diameter, do3D, normalize,
-					flowThreshold, cellProbThreshold, useGpu, minSize,
+					flowThreshold, maskThreshold, useGpu, minSize,
 					anisotropy, stitchThreshold, resample, tileOverlap,
 					computeFlows, flow3dSmooth, nIter, torchVersion );
 		}
