@@ -50,6 +50,11 @@
 			<url>https://imagej.net/people/ctrueden</url>
 			<properties><id>ctrueden</id></properties>
 		</contributor>
+		<contributor>
+			<name>Kevin John Cutler</name>
+			<url>https://github.com/kevinjohncutler</url>
+			<properties><id>kevinjohncutler</id></properties>
+		</contributor>
 	</contributors>
 
 	<mailingLists>
