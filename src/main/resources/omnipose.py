@@ -36,9 +36,9 @@ def run_omnipose(
     """Runs Omnipose on a single image with the given parameters.
     Refer to Omnipose documentation for kwargs list."""
 
-    model: CellposeModel | None = globals()["model"]
+    model: OmniModel | None = globals()["model"]
     if model is None:
-        ## Now model should be initialize with cp3_init script but it does not, do initialization here
+        ## Now model should be initialize with omnipose_init script but it does not, do initialization here
 
         # Manage pretrained model and model type selection based on user inputs
         # - Prioritize custom model if provided
@@ -55,7 +55,7 @@ def run_omnipose(
             maximum=5,
             message=f"Omnipose: Deploy model {selected_model if selected_model else custom_model}",
         )
-        model = models.CellposeModel(
+        model = models.OmniModel(
             model_type=selected_model,
             pretrained_model=custom_model,
             gpu=kwargs.get("use_gpu", False),
