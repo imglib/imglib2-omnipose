@@ -90,7 +90,6 @@ def run_omnipose(
         stitch_threshold=stitch_threshold,
         z_axis=z_axis,
         channel_axis=channel_axis,
-        flow3D_smooth=kwargs.get("flow3D_smooth", 0),
         resample=kwargs.get("resample", True),
         rescale_factor=rescale_factor,
         normalize=kwargs.get("normalize", True),
@@ -197,7 +196,6 @@ else:
     mask_threshold = 0.0
     min_size = 15
     tile_overlap = 0.1
-    flow3D_smooth = 0
     niter = None
     use_gpu = False
 
@@ -221,7 +219,6 @@ result = run_omnipose(
         "time_axis": time_axis,
         "use_gpu": use_gpu,
         "device": device,
-        "flow3D_smooth": flow3D_smooth,
         "resample": resample,
         "normalize": normalize,
         "flow_threshold": flow_threshold,

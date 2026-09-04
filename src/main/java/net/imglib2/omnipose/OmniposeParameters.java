@@ -45,8 +45,6 @@ public class OmniposeParameters
 
 	public final double stitchThreshold;
 
-	public final int flow3dSmooth;
-
 	// Advanced parameters
 
 	public final boolean useGpu;
@@ -79,7 +77,6 @@ public class OmniposeParameters
 			final boolean resample,
 			final double tileOverlap,
 			final boolean computeFlows,
-			final int flow3dSmooth,
 			final int nIter,
 			final String torchVersion )
 	{
@@ -98,7 +95,6 @@ public class OmniposeParameters
 		this.resample = resample;
 		this.tileOverlap = tileOverlap;
 		this.computeFlows = computeFlows;
-		this.flow3dSmooth = flow3dSmooth;
 		this.nIter = nIter;
 		this.torchVersion = torchVersion;
 	}
@@ -152,7 +148,6 @@ public class OmniposeParameters
 		inputs.put( "mask_threshold", maskThreshold );
 		inputs.put( "min_size", minSize );
 		inputs.put( "tile_overlap", tileOverlap );
-		inputs.put( "flow3D_smooth", flow3dSmooth );
 		inputs.put( "niter", nIter <= 0 ? null : nIter );
 		inputs.put( "use_gpu", useGpu );
 
@@ -191,8 +186,6 @@ public class OmniposeParameters
 		private double anisotropy = 1.0;
 
 		private double stitchThreshold = 0.0;
-
-		private int flow3dSmooth = 0;
 
 		// Advanced parameters
 
@@ -294,12 +287,6 @@ public class OmniposeParameters
 			return this;
 		}
 
-		public Builder flow3dSmooth( final int flow3dSmooth )
-		{
-			this.flow3dSmooth = flow3dSmooth;
-			return this;
-		}
-
 		public Builder nIter( final int nIter )
 		{
 			this.nIter = nIter;
@@ -324,7 +311,7 @@ public class OmniposeParameters
 					model, channels, customModel, diameter, do3D, normalize,
 					flowThreshold, maskThreshold, useGpu, minSize,
 					anisotropy, stitchThreshold, resample, tileOverlap,
-					computeFlows, flow3dSmooth, nIter, torchVersion );
+					computeFlows, nIter, torchVersion );
 		}
 
 	}
