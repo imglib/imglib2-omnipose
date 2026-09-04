@@ -8,7 +8,6 @@ import org.apposed.appose.TaskException;
 import net.imglib2.Dimensions;
 import net.imglib2.FinalDimensions;
 import net.imglib2.RandomAccessibleInterval;
-import net.imglib2.appose.ShmImg;
 import net.imglib2.appose.util.ApposeTaskListener;
 import net.imglib2.appose.util.AxisInfo;
 import net.imglib2.img.Img;
@@ -17,9 +16,7 @@ import net.imglib2.type.numeric.IntegerType;
 import net.imglib2.type.numeric.RealType;
 import net.imglib2.type.numeric.integer.UnsignedByteType;
 import net.imglib2.type.numeric.integer.UnsignedShortType;
-import net.imglib2.util.ImgUtil;
 import net.imglib2.util.Util;
-import net.imglib2.view.IntervalView;
 import net.imglib2.view.Views;
 
 public class Omnipose
@@ -71,10 +68,7 @@ public class Omnipose
 			final OmniposeParameters params,
 			final ApposeTaskListener listener ) throws BuildException, IOException, InterruptedException, TaskException
 	{
-		final String envName = "omnipose-" + getTorchInstallSuffix( params.torchVersion );
-		final String pythonScriptPath = "/omnipose.py";
-		final String pythonInitScriptPath = "/omnipose_init.py";
-		return run( img, axisInfo, outputType, params, pythonInitScriptPath, pythonScriptPath, envName, listener );
+		return run( img, axisInfo, outputType, params, listener );
 	}
 
 	public static < T extends RealType< T > & NativeType< T > > OmniposeOutput< UnsignedShortType > omnipose(
@@ -84,30 +78,6 @@ public class Omnipose
 			final ApposeTaskListener listener ) throws BuildException, IOException, InterruptedException, TaskException
 	{
 		return omnipose( img, axisInfo, new UnsignedShortType(), params, listener );
-	}
-
-	public static < T extends RealType< T > & NativeType< T >, R extends IntegerType< R > & NativeType< R > > OmniposeRunner< T, R > omniposeRunner(
-			final OmniposeParameters params,
-			final ApposeTaskListener listener,
-			final ShmImg< T > input,
-			final AxisInfo inputAxisInfo,
-			final ShmImg< R > outputLabels,
-			final ShmImg< UnsignedByteType > outputFlows ) throws BuildException, IOException, InterruptedException, TaskException
-	{
-		final String envName = "omnipose-" + getTorchInstallSuffix( params.torchVersion );
-		final String pythonScriptPath = "/omnipose.py";
-		final String pythonInitScriptPath = "/omnipose_init.py";
-
-		return new OmniposeRunner<>(
-				params,
-				pythonInitScriptPath,
-				pythonScriptPath,
-				envName,
-				listener,
-				input,
-				inputAxisInfo,
-				outputLabels,
-				outputFlows );
 	}
 
 	/**
@@ -122,73 +92,38 @@ public class Omnipose
 	 *            the AxisInfo of the input image.
 	 * @param params
 	 *            the parameters to run Omnipose with.
-	 * @param pythonScriptPath
-	 *            the path to the Python script to run.
-	 * @param envName
-	 *            the name of the Python environment to create and use.
-	 * @return a list containing the label image, and optionally the flows
-	 *         image. If flows are not computed, the list will contain only the
-	 *         label image.
+	 * @return an {@link OmniposeOutput} containing the label image, and
+	 *         optionally the flows image. If flows are not computed, the output
+	 *         will contain only the label image.
 	 */
 	private static < T extends RealType< T > & NativeType< T >, R extends IntegerType< R > & NativeType< R > > OmniposeOutput< R > run(
 			final RandomAccessibleInterval< T > input,
 			final AxisInfo axisInfo,
 			final R outputType,
 			final OmniposeParameters params,
-			final String pythonInitScriptPath,
-			final String pythonScriptPath,
-			final String envName,
 			final ApposeTaskListener listener ) throws BuildException, IOException, InterruptedException, TaskException
 	{
 		if ( axisInfo.X() != 0 || axisInfo.Y() != 1 )
 			throw new IllegalArgumentException( "X and Y axes must be at positions 0 and 1 respectively." );
 
-		// Placeholders declaration.
-		final ShmImg< T > inputShm;
-		final AxisInfo inputAxisInfo;
-		final ShmImg< R > outputLabelsShm;
-		final ShmImg< UnsignedByteType > outputFlowsShm;
-
-		// Do we have a 5D image? If yes we process timepoint by timepoint.
+		// Do we have a 5D image? If yes we process time-point by time-point.
 		final long nt = axisInfo.nTimePoints( input );
 		final long nz = axisInfo.nZ( input );
 
+		final OmniposeRunner< T, R > runner;
 		if ( nt > 1 && nz > 1 )
 		{
-			// Temp image won't have time dim.
-			inputAxisInfo = axisInfo.removeTimeDim();
-			// We create placeholders for a single timepoint.
-			final IntervalView< T > singleTP = Views.hyperSlice( input, axisInfo.T(), 0 );
-			inputShm = createInputShmImg( singleTP );
-			outputLabelsShm = createOutputLabelsShmImg( singleTP, axisInfo.removeTimeDim(), outputType );
-			if ( params.computeFlows )
-				outputFlowsShm = createOutputFlowsShmImg( singleTP, axisInfo.removeTimeDim() );
-			else
-				outputFlowsShm = null;
+			// Drop time.
+			final AxisInfo axisInfoNoT = axisInfo.removeTimeDim();
+			final Dimensions dimsNotT = Views.hyperSlice( input, axisInfo.T(), 0 );
+			runner = OmniposeRunner.create( params, dimsNotT, axisInfoNoT, input.getType(), outputType, listener );
 		}
 		else
 		{
-			inputAxisInfo = axisInfo;
-			// We create placeholders for the whole image.
-			inputShm = createInputShmImg( input );
-			outputLabelsShm = createOutputLabelsShmImg( input, axisInfo, outputType );
-			if ( params.computeFlows )
-				outputFlowsShm = createOutputFlowsShmImg( input, axisInfo );
-			else
-				outputFlowsShm = null;
+			runner = OmniposeRunner.create( params, input, axisInfo, input.getType(), outputType, listener );
 		}
 
-		// Create the runner, configured on the ShmImg.
-		try (final OmniposeRunner< T, R > runner = new OmniposeRunner<>(
-				params,
-				pythonInitScriptPath,
-				pythonScriptPath,
-				envName,
-				listener,
-				inputShm,
-				inputAxisInfo,
-				outputLabelsShm,
-				outputFlowsShm ))
+		try (runner)
 		{
 			runner.init();
 
@@ -224,41 +159,24 @@ public class Omnipose
 				}
 
 				/*
-				 * Process time point by time point.
+				 * Process time-point by time-point.
 				 */
 
 				for ( int t = 0; t < nt; t++ )
 				{
 					// Input reslice.
-					final RandomAccessibleInterval< T > inputTp = Views.hyperSlice( input, axisInfo.T(), t );
+					runner.setInput( Views.hyperSlice( input, axisInfo.T(), t ) );
 
-					// Labels output reslice.
-					final RandomAccessibleInterval< R > outputLabelsTp = Views.hyperSlice( outputLabels, 3, t );
-
-					// Flows output reslice.
-					final RandomAccessibleInterval< UnsignedByteType > outputFlowsTp;
-					if ( params.computeFlows )
-						outputFlowsTp = Views.hyperSlice( outputFlows, 4, t );
-					else
-						outputFlowsTp = null;
-
-					// Write input slice into the shared memory placeholder.
-					ImgUtil.copy( inputTp, inputShm );
-
-					// Exec and write output in the right place.
+					// Execute
 					runner.run();
 
-					// Write output in the resliced output images.
-					ImgUtil.copy( outputLabelsShm, outputLabelsTp );
-					if ( params.computeFlows )
-						ImgUtil.copy( outputFlowsShm, outputFlowsTp );
-				}
+					// Labels output reslice.
+					runner.getOutputLabels( Views.hyperSlice( outputLabels, 3, t ) );
 
-				// Close placeholder ShmImgs.
-				inputShm.close();
-				outputLabelsShm.close();
-				if ( params.computeFlows )
-					outputFlowsShm.close();
+					// Flows output reslice.
+					if ( params.computeFlows )
+						runner.getOutputFlows( Views.hyperSlice( outputFlows, 4, t ) );
+				}
 
 				// Return all time-points.
 				@SuppressWarnings( { "rawtypes", "unchecked" } )
@@ -272,199 +190,10 @@ public class Omnipose
 			else
 			{
 				// Otherwise process in one go.
-				// Write input in the shared memory placeholder.
-				ImgUtil.copy( input, inputShm );
+				runner.setInput( input );
 				runner.run();
-
-				// And return with the shared image we created.
-				final AxisInfo axesLabels = axisInfo.removeChannelDim();
-				final AxisInfo axesFlows = axesLabels.insertChannelDim( 2 );
-				return new OmniposeOutput< R >( outputLabelsShm, axesLabels, outputFlowsShm, axesFlows );
+				return runner.getOutput();
 			}
-		}
-	}
-
-	/**
-	 * Creates an empty shared memory image with the same dimensions and pixel
-	 * type as the input.
-	 *
-	 * @param <T>
-	 *            the pixel type of the input image.
-	 * @param input
-	 *            the input image.
-	 * @return a new ShmImg.
-	 */
-	public static < T extends RealType< T > & NativeType< T > > ShmImg< T > createInputShmImg( final RandomAccessibleInterval< T > input )
-	{
-		return createInputShmImg( input, input.getType().createVariable() );
-	}
-
-	/**
-	 * Creates an empty shared memory image with the specified dimensions and
-	 * pixel type.
-	 *
-	 * @param <T>
-	 *            the pixel type.
-	 * @param input
-	 *            the dimensions.
-	 * @param type
-	 *            the pixel type.
-	 * @return a new ShmImg.
-	 */
-	public static < T extends RealType< T > & NativeType< T > > ShmImg< T > createInputShmImg( final Dimensions input, final T type )
-	{
-		final long[] dims = input.dimensionsAsLongArray();
-		final int[] dims2 = new int[ dims.length ];
-		for ( int i = 0; i < dims.length; i++ )
-			dims2[ i ] = ( int ) dims[ i ];
-		return new ShmImg<>( type, dims2 );
-	}
-
-	/**
-	 * Creates a shared memory image suitable to hold Omnipose flows output,
-	 * with the right dimensions for the specified image input.
-	 *
-	 * @param input
-	 *            the input image.
-	 * @param axisInfo
-	 *            the AxisInfo of the input image.
-	 * @return a new ShmImg.
-	 */
-	public static ShmImg< UnsignedByteType > createOutputFlowsShmImg( final Dimensions input, final AxisInfo axisInfo )
-	{
-		final long[] dims = input.dimensionsAsLongArray();
-		if ( axisInfo.C() < 0 )
-		{
-			final int[] dims2 = new int[ dims.length + 1 ];
-			dims2[ 0 ] = ( int ) dims[ 0 ];
-			dims2[ 1 ] = ( int ) dims[ 1 ];
-			dims2[ 2 ] = 3; // 3 channels for the flows.
-			for ( int i = 2; i < dims.length; i++ )
-				dims2[ i + 1 ] = ( int ) dims[ i ];
-			return new ShmImg<>( new UnsignedByteType(), dims2 );
-		}
-		final int[] dims2 = new int[ dims.length ];
-		for ( int i = 0; i < dims.length; i++ )
-		{
-			if ( i == axisInfo.C() )
-				dims2[ i ] = 3; // 3 channels for the flows.
-			else
-				dims2[ i ] = ( int ) dims[ i ];
-		}
-		return new ShmImg<>( new UnsignedByteType(), dims2 );
-	}
-
-	/**
-	 * Creates a shared memory image suitable to hold Omnipose labels output,
-	 * with the right dimensions for the specified image input.
-	 *
-	 * @param <R>
-	 *            the pixel type of the output label image.
-	 * @param input
-	 *            the input image.
-	 * @param axisInfo
-	 *            the AxisInfo of the input image.
-	 * @param outputType
-	 *            the desired pixel type for the output labels image. It can be
-	 *            either UnsignedShortType or UnsignedIntType (if the number of
-	 *            labels in one image is larger than 65k).
-	 * @return a new ShmImg.
-	 */
-	public static < R extends IntegerType< R > & NativeType< R > > ShmImg< R > createOutputLabelsShmImg( final Dimensions input, final AxisInfo axisInfo, final R outputType )
-	{
-		final long[] dims = input.dimensionsAsLongArray();
-		if ( axisInfo.C() < 0 )
-		{
-			final int[] dims2 = new int[ dims.length ];
-			for ( int i = 0; i < dims.length; i++ )
-				dims2[ i ] = ( int ) dims[ i ];
-			return new ShmImg< R >( outputType, dims2 );
-		}
-		// We drop the channel dim.
-		final int[] dims2 = new int[ dims.length - 1 ];
-		int j = 0;
-		for ( int i = 0; i < dims.length; i++ )
-		{
-			if ( i != axisInfo.C() )
-			{
-				dims2[ j ] = ( int ) dims[ i ];
-				j++;
-			}
-		}
-		return new ShmImg< R >( outputType, dims2 );
-	}
-
-	/**
-	 * Filters and returns the suffix to use for installing the correct version
-	 * of PyTorch.
-	 * <p>
-	 * This method checks the operating system and CUDA availability to
-	 * determine the appropriate suffix for installing PyTorch. If you are on a
-	 * Mac or do not have CUDA available, it returns "cpu". Otherwise, it
-	 * returns the specified torchVersion.
-	 *
-	 * @param torchVersion
-	 *            the version of PyTorch to install if CUDA is available.
-	 * @return the suffix to use for installing the correct version of PyTorch.
-	 */
-	private static String getTorchInstallSuffix( final String torchVersion )
-	{
-		// if MacOS, return "-cpu"
-		if ( getOperatingSystem() == OperatingSystem.MACOS )
-			return "cpu";
-
-		if ( !hasCUDA() )
-			return "cpu";
-
-		return torchVersion;
-	}
-
-	/** Enum representing the main operating systems. */
-	public enum OperatingSystem
-	{
-		WINDOWS, LINUX, MACOS, UNKNOWN
-	}
-
-	/**
-	 * Returns the current operating system.
-	 *
-	 * @return the current operating system.
-	 */
-	private static OperatingSystem getOperatingSystem()
-	{
-		final String os = System.getProperty( "os.name" ).toLowerCase();
-		if ( os.contains( "mac" ) || os.contains( "darwin" ) )
-			return OperatingSystem.MACOS;
-		if ( os.contains( "win" ) )
-			return OperatingSystem.WINDOWS;
-		if ( os.contains( "nux" ) || os.contains( "nix" ) || os.contains( "aix" ) )
-			return OperatingSystem.LINUX;
-		return OperatingSystem.UNKNOWN;
-	}
-
-	/**
-	 * Checks if CUDA is available on the system by trying to execute
-	 * {@code nvidia-smi}. This method returns {@code false} on macOS, as CUDA
-	 * is not supported on that platform.
-	 *
-	 * @return {@code true} if CUDA is available, {@code false} otherwise.
-	 */
-	private static Boolean hasCUDA()
-	{
-		if ( getOperatingSystem() == OperatingSystem.MACOS )
-			return false;
-		try
-		{
-			// try to run nvidia-smi to check if it is available
-			final ProcessBuilder pb = new ProcessBuilder( "nvidia-smi" );
-			pb.redirectErrorStream( true );
-			final Process process = pb.start();
-			process.waitFor();
-			return process.exitValue() == 0;
-		}
-		catch ( final IOException | InterruptedException e )
-		{
-			return false;
 		}
 	}
 

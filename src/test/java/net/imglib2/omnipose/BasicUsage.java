@@ -11,7 +11,6 @@ import ij.IJ;
 import ij.ImageJ;
 import ij.ImagePlus;
 import net.imglib2.RandomAccessibleInterval;
-import net.imglib2.appose.ShmImg;
 import net.imglib2.appose.util.ApposeTaskListener;
 import net.imglib2.appose.util.AxisInfo;
 import net.imglib2.img.Img;
@@ -22,7 +21,6 @@ import net.imglib2.type.numeric.RealType;
 import net.imglib2.type.numeric.integer.UnsignedByteType;
 import net.imglib2.type.numeric.integer.UnsignedIntType;
 import net.imglib2.type.numeric.integer.UnsignedShortType;
-import net.imglib2.util.ImgUtil;
 
 public class BasicUsage
 {
@@ -32,8 +30,8 @@ public class BasicUsage
 		try
 		{
 			basicUsage( args );
-//			outputType( args );
-//			omniposeRunner( args );
+			outputType( args );
+			omniposeRunner( args );
 		}
 		catch ( final Exception e )
 		{
@@ -131,27 +129,19 @@ public class BasicUsage
 		// Time everything.
 		long startTime = System.currentTimeMillis();
 
-		// Now we create the Omnipose runner and the shared tmp images in a
+		// Now we create the Omnipose runner and use it in a
 		// try-with-resources block. This way we are sure that the shared tmp
 		// images are and the Omnipose runner are properly closed and cleaned up
 		// after use.
-		try (
-				// The tmp data location to pass input to Omnipose.
-				final ShmImg< UnsignedByteType > tmpInput = Omnipose.createInputShmImg( inputImages.get( 0 ) );
-				// The tmp data location to receive the Omnipose labels output.
-				final ShmImg< UnsignedShortType > tmpLabels = Omnipose.createOutputLabelsShmImg( tmpInput, axes, new UnsignedShortType() );
-				// The tmp data location to receive the Omnipose flows output.
-				final ShmImg< UnsignedByteType > tmpFlows = Omnipose.createOutputFlowsShmImg( tmpInput, axes );
-				// The Omnipose runner, initialized with the tmp data locations.
-				// Because we passed a Omnipose parameter object, it will be a
-				// runner configured to run Omnipose.
-				final OmniposeRunner< UnsignedByteType, UnsignedShortType > runner = Omnipose.omniposeRunner(
-						params,
-						ApposeTaskListener.VOID,
-						tmpInput,
-						axes,
-						tmpLabels,
-						tmpFlows ))
+
+		final OmniposeRunner< UnsignedByteType, UnsignedShortType > runner = OmniposeRunner.create(
+				params,
+				inputImages.get( 0 ),
+				axes,
+				inputImages.get( 0 ).getType(),
+				ApposeTaskListener.VOID );
+
+		try (runner)
 		{
 			System.out.println( String.format( "Runner and placeholders creation time: %.2f seconds", ( System.currentTimeMillis() - startTime ) / 1000. ) );
 
@@ -170,7 +160,7 @@ public class BasicUsage
 
 				// Copy the input image to the tmp location.
 				startTime = System.currentTimeMillis();
-				ImgUtil.copy( input, tmpInput );
+				runner.setInput( input );
 				System.out.println( String.format( "Input copy time: %.2f seconds", ( System.currentTimeMillis() - startTime ) / 1000. ) );
 
 				// Run Omnipose. The results will be written in the tmpLabels
@@ -182,7 +172,7 @@ public class BasicUsage
 				// Copy the output to a new image.
 				startTime = System.currentTimeMillis();
 				final RandomAccessibleInterval< UnsignedShortType > outputLabels = ArrayImgs.unsignedShorts( input.dimensionsAsLongArray() );
-				ImgUtil.copy( tmpLabels, outputLabels );
+				runner.getOutputLabels( outputLabels );
 				System.out.println( String.format( "Output copy to a new image time: %.2f seconds", ( System.currentTimeMillis() - startTime ) / 1000. ) );
 				outputImages.add( outputLabels );
 			}
