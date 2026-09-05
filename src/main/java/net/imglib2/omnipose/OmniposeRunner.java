@@ -67,7 +67,7 @@ public class OmniposeRunner< T extends RealType< T > & NativeType< T >, R extend
 	}
 
 	@Override
-	public void run() throws InterruptedException, TaskException, IOException
+	public void run() throws InterruptedException, TaskException
 	{
 		super.run();
 		processed = true;
