@@ -18,31 +18,30 @@ import net.imglib2.type.numeric.RealType;
 import net.imglib2.type.numeric.integer.UnsignedByteType;
 import net.imglib2.type.numeric.integer.UnsignedShortType;
 import net.imglib2.util.ImgUtil;
+import net.imglib2.util.Intervals;
 import net.imglib2.util.Util;
 
 /**
  * Specialized class that runs Omnipose. This class exists so that we can write
  * results in a pre-allocated output data structure.
  */
-public class OmniposeRunner2< T extends RealType< T > & NativeType< T >, R extends IntegerType< R > & NativeType< R > > extends AbstractPixiRunner2
+public class OmniposeRunner2 extends AbstractPixiRunner2
 {
 
-	private final ShmImg< T > inputShm;
+	private ShmImg< ? > inputShm;
 
-	private final ShmImg< R > outputLabelsShm;
+	private ShmImg< ? > outputLabelsShm;
 
-	private final ShmImg< UnsignedByteType > outputFlowsShm;
+	private ShmImg< UnsignedByteType > outputFlowsShm;
 
-	private final AxisInfo axisInfo;
+	private AxisInfo axisInfo;
 
 	private boolean processed = false;
 
+	private boolean needsRegen;
+
 	private OmniposeRunner2(
 			final String envName,
-			final ShmImg< T > inputShm,
-			final ShmImg< R > outputLabelsShm,
-			final ShmImg< UnsignedByteType > outputFlowsShm,
-			final AxisInfo axisInfo,
 			final ApposeTaskListener listener )
 	{
 		super(
@@ -51,35 +50,116 @@ public class OmniposeRunner2< T extends RealType< T > & NativeType< T >, R exten
 				OmniposeRunner2.class.getResource( "/omnipose.py" ),
 				envName,
 				listener );
-		this.inputShm = inputShm;
-		this.outputLabelsShm = outputLabelsShm;
-		this.outputFlowsShm = outputFlowsShm;
-		this.axisInfo = axisInfo;
 	}
 
-	public void setInput( final RandomAccessibleInterval< T > input )
+	public < T extends RealType< T > & NativeType< T > > void setInput(
+			final RandomAccessibleInterval< T > input,
+			final AxisInfo axisInfo )
+	{
+		setInput( input, axisInfo, new UnsignedShortType() );
+	}
+
+	@SuppressWarnings( { "unchecked", "rawtypes" } )
+	public < T extends RealType< T > & NativeType< T >, R extends IntegerType< R > & NativeType< R > > void setInput(
+			final RandomAccessibleInterval< T > input,
+			final AxisInfo axisInfo,
+			final R outputType )
 	{
 		processed = false;
-		ImgUtil.copy( input, inputShm );
+		boolean regenInputHolder = false;
+
+		// Un-initialized?
+		if ( inputShm == null )
+			regenInputHolder = true;
+		// Dimensions changed?
+		else if ( !Intervals.equalDimensions( ( Dimensions ) input, ( Dimensions ) inputShm ) )
+			regenInputHolder = true;
+		// Type changed?
+		else if ( !inputShm.firstElement().getClass().equals( input.randomAccess().get().getClass() ) )
+			regenInputHolder = true;
+
+		if ( regenInputHolder )
+		{
+			if ( inputShm != null )
+				inputShm.close();
+			if ( outputLabelsShm != null )
+				outputLabelsShm.close();
+			inputShm = createInputShmImg( input, input.randomAccess().get() );
+			outputLabelsShm = createOutputLabelsShmImg( input, axisInfo, outputType );
+			// For the flows output, we wait to know if we are asked to compute
+			// them.
+		}
+		// No need to regen the input, but what if the ouput type changed?
+		else if ( !outputLabelsShm.firstElement().getClass().equals( outputType.getClass() ) )
+		{
+			if ( outputLabelsShm != null )
+				outputLabelsShm.close();
+			outputLabelsShm = createOutputLabelsShmImg( input, axisInfo, outputType );
+		}
+
+		this.needsRegen = regenInputHolder;
+		this.axisInfo = axisInfo;
+		ImgUtil.copy( ( Img ) input, ( Img ) inputShm );
 	}
 
 	public void run( final OmniposeParameters params ) throws InterruptedException, TaskException
 	{
-		final Map< String, Object > map = params.toApposeMap( inputShm, axisInfo, outputLabelsShm, outputFlowsShm );
+		// Shall we prepare the output flows shm?
+		if ( params.computeFlows )
+		{
+			if ( outputFlowsShm == null || needsRegen )
+			{
+				if ( outputFlowsShm != null )
+					outputFlowsShm.close();
+				outputFlowsShm = createOutputFlowsShmImg( inputShm, axisInfo );
+			}
+		}
+		else
+		{
+			if ( outputFlowsShm != null )
+			{
+				outputFlowsShm.close();
+				outputFlowsShm = null;
+			}
+		}
+
+		@SuppressWarnings( { "unchecked", "rawtypes" } )
+		final Map< String, Object > map = params.toApposeMap(
+				( ShmImg ) inputShm,
+				axisInfo,
+				( ShmImg ) outputLabelsShm,
+				outputFlowsShm );
 		super.run( map );
 		processed = true;
 	}
 
-	public void getOutputLabels( final RandomAccessibleInterval< R > outputLabels )
+	@SuppressWarnings( { "rawtypes", "unchecked" } )
+	public < R extends NativeType< R > & IntegerType< R > > void getOutputLabels( final RandomAccessibleInterval< R > outputLabels )
 	{
 		if ( !processed )
 			throw new IllegalStateException( "The input image has been set but the task has not been run yet. Please execute run() first." );
-		ImgUtil.copy( outputLabelsShm, outputLabels );
+
+		// Check that the outputLabels has the same dimensions as the buffer
+		if ( !Intervals.equalDimensions( ( Dimensions ) outputLabels, ( Dimensions ) outputLabelsShm ) )
+			throw new IllegalArgumentException( "The specified outputLabels image has different dimensions ("
+					+ Intervals.toString( ( Dimensions ) outputLabels )
+					+ ") than the output buffer image ("
+					+ Intervals.toString( ( Dimensions ) outputLabelsShm ) );
+
+		// Check that the outputLabels has the same type as the buffer
+		if ( !outputLabelsShm.firstElement().getClass().equals( outputLabels.randomAccess().get().getClass() ) )
+			throw new IllegalArgumentException( "The specified output labels image has a different type ("
+					+ outputLabels.randomAccess().get().getClass().getSimpleName()
+					+ ") than the output buffer image ("
+					+ outputLabelsShm.firstElement().getClass().getSimpleName() );
+
+		ImgUtil.copy( ( ShmImg ) outputLabelsShm, outputLabels );
 	}
 
-	public Img< R > getOutputLabels()
+	public < R extends NativeType< R > & IntegerType< R > > Img< R > getOutputLabels()
 	{
-		final Img< R > outputLabels = Util.getArrayOrCellImgFactory( outputLabelsShm, outputLabelsShm.getType() ).create( outputLabelsShm );
+		@SuppressWarnings( "unchecked" )
+		final Img< R > outputLabels = ( Img< R > ) Util.getArrayOrCellImgFactory( outputLabelsShm, outputLabelsShm.getType() ).create( outputLabelsShm );
 		getOutputLabels( outputLabels );
 		return outputLabels;
 	}
@@ -90,6 +170,14 @@ public class OmniposeRunner2< T extends RealType< T > & NativeType< T >, R exten
 			throw new IllegalStateException( "The input image has been set but the task has not been run yet. Please execute run() first." );
 		if ( outputFlowsShm == null )
 			throw new IllegalStateException( "Output flows were not computed." );
+
+		// Check that the outputFlows has the same dimensions as the buffer
+		if ( !Intervals.equalDimensions( ( Dimensions ) outputFlows, ( Dimensions ) outputFlowsShm ) )
+			throw new IllegalArgumentException( "The specified output flows image has different dimensions ("
+					+ Intervals.toString( ( Dimensions ) outputFlows )
+					+ ") than the output flow buffer image ("
+					+ Intervals.toString( ( Dimensions ) outputFlowsShm ) );
+
 		ImgUtil.copy( outputFlowsShm, outputFlows );
 	}
 
@@ -102,7 +190,7 @@ public class OmniposeRunner2< T extends RealType< T > & NativeType< T >, R exten
 		return outputFlows;
 	}
 
-	public OmniposeOutput< R > getOutput()
+	public < R extends NativeType< R > & IntegerType< R > > OmniposeOutput< R > getOutput()
 	{
 		final Img< R > outputLabels = getOutputLabels();
 		final Img< UnsignedByteType > outputFlows = outputFlowsShm != null ? getOutputFlows() : null;
@@ -115,36 +203,18 @@ public class OmniposeRunner2< T extends RealType< T > & NativeType< T >, R exten
 	public void close()
 	{
 		super.close();
-		inputShm.close();
-		outputLabelsShm.close();
+		if ( inputShm != null )
+			inputShm.close();
+		if ( outputLabelsShm != null )
+			outputLabelsShm.close();
 		if ( outputFlowsShm != null )
 			outputFlowsShm.close();
 	}
 
-	public static < T extends RealType< T > & NativeType< T > > OmniposeRunner2< T, UnsignedShortType > create(
-			final Dimensions dimension,
-			final AxisInfo axisInfo,
-			final T inputType,
-			final ApposeTaskListener listener,
-			final String torchVersion )
+	public static OmniposeRunner2 create( final ApposeTaskListener listener, final String torchVersion )
 	{
-		return create( dimension, axisInfo, inputType, new UnsignedShortType(), listener, torchVersion );
-	}
-
-	public static < T extends RealType< T > & NativeType< T >, R extends IntegerType< R > & NativeType< R > > OmniposeRunner2< T, R > create(
-			final Dimensions dimension,
-			final AxisInfo axisInfo,
-			final T inputType,
-			final R outputType,
-			final ApposeTaskListener listener,
-			final String torchVersion )
-	{
-		final ShmImg< T > inputShm = createInputShmImg( dimension, inputType );
-		final ShmImg< R > outputLabelsShm = createOutputLabelsShmImg( dimension, axisInfo, outputType );
-		final ShmImg< UnsignedByteType > outputFlowsShm;
-		outputFlowsShm = createOutputFlowsShmImg( dimension, axisInfo );
 		final String envName = "omnipose-" + getTorchInstallSuffix( torchVersion );
-		return new OmniposeRunner2< T, R >( envName, inputShm, outputLabelsShm, outputFlowsShm, axisInfo, listener );
+		return new OmniposeRunner2( envName, listener );
 	}
 
 	/**
@@ -218,7 +288,7 @@ public class OmniposeRunner2< T extends RealType< T > & NativeType< T >, R exten
 	 *            labels in one image is larger than 65k).
 	 * @return a new ShmImg.
 	 */
-	private static < R extends IntegerType< R > & NativeType< R > > ShmImg< R > createOutputLabelsShmImg( final Dimensions input, final AxisInfo axisInfo, final R outputType )
+	private static < R extends NativeType< R > > ShmImg< R > createOutputLabelsShmImg( final Dimensions input, final AxisInfo axisInfo, final R outputType )
 	{
 		final long[] dims = input.dimensionsAsLongArray();
 		if ( axisInfo.C() < 0 )
