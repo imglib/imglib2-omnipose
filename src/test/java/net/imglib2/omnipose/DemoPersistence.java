@@ -52,7 +52,7 @@ public class DemoPersistence
 						params1.torchVersion );)
 		{
 			System.out.println( "Init." );
-			runner.init( params1 );
+			runner.init();
 			System.out.println( "Init done." );
 			
 			System.out.println();

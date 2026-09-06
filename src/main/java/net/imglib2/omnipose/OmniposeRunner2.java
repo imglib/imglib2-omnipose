@@ -3,7 +3,6 @@ package net.imglib2.omnipose;
 import java.io.IOException;
 import java.util.Map;
 
-import org.apposed.appose.BuildException;
 import org.apposed.appose.TaskException;
 
 import net.imglib2.Dimensions;
@@ -49,7 +48,6 @@ public class OmniposeRunner2< T extends RealType< T > & NativeType< T >, R exten
 		super(
 				OmniposeRunner2.class.getResource( "/pixi.toml" ),
 				OmniposeRunner2.class.getResource( "/omnipose_utils.py" ),
-				OmniposeRunner2.class.getResource( "/omnipose_init.py" ),
 				OmniposeRunner2.class.getResource( "/omnipose.py" ),
 				envName,
 				listener );
@@ -63,12 +61,6 @@ public class OmniposeRunner2< T extends RealType< T > & NativeType< T >, R exten
 	{
 		processed = false;
 		ImgUtil.copy( input, inputShm );
-	}
-
-	public void init( final OmniposeParameters params ) throws IOException, BuildException, InterruptedException, TaskException
-	{
-		final Map< String, Object > map = params.toApposeMap( inputShm, axisInfo, outputLabelsShm, outputFlowsShm );
-		super.init( map );
 	}
 
 	public void run( final OmniposeParameters params ) throws InterruptedException, TaskException

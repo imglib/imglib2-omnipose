@@ -51,7 +51,7 @@ def run_omnipose(
     )
 
     # Do we have a model already initialized in globals?
-    model: OmniModel | None = globals()["model"]
+    model: OmniModel | None = globals().get("model", None)
 
     # Does it match the model specified in the params?
     if (
