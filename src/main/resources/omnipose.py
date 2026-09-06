@@ -1,6 +1,8 @@
+import time
 from typing import TYPE_CHECKING
 
 import numpy as np
+
 from omnipose import io, models
 
 ###############################################################################
@@ -36,34 +38,55 @@ def run_omnipose(
     """Runs Omnipose on a single image with the given parameters.
     Refer to Omnipose documentation for kwargs list."""
 
+    # This is the model specified in the params.
+    custom_model = kwargs.get("custom_model", None)
+    selected_model = (
+        kwargs.get("model_name", "bact_phase_omni") if custom_model is None else None
+    )
+
+    # This is the model that was previously initialized in the omnipose_init script.
+    previously_initialized_model = globals().get("previous_model_name", None)
+    task.update(
+        message=f"Omnipose: Previously initialized model: {previously_initialized_model}, requested model: {selected_model}"
+    )
+
+    # Do we have a model already initialized in globals?
     model: OmniModel | None = globals()["model"]
+
+    # Does it match the model specified in the params?
+    if (
+        previously_initialized_model is not None
+        and previously_initialized_model != selected_model
+    ):
+        task.update(
+            message=f"Omnipose: Model {previously_initialized_model} already initialized, but the requested model is {selected_model}. Reinitializing the model."
+        )
+        model = None  # Force reinitialization
+
     if model is None:
         ## Now model should be initialize with omnipose_init script but it does not, do initialization here
 
-        # Manage pretrained model and model type selection based on user inputs
-        # - Prioritize custom model if provided
-        # - Otherwise use model_name with `bact_phase_omni` as default
-        custom_model = kwargs.get("custom_model", None)
-        selected_model = (
-            kwargs.get("model_name", "bact_phase_omni")
-            if custom_model is None
-            else None
+        start_time = time.time()
+        task.update(
+            message=f"Omnipose (device={device}): deploy model {selected_model if selected_model else custom_model}",
         )
 
-        task.update(
-            current=2,
-            maximum=5,
-            message=f"Omnipose: Deploy model {selected_model if selected_model else custom_model}",
-        )
         model = models.OmniModel(
             model_type=selected_model,
             pretrained_model=custom_model,
             gpu=kwargs.get("use_gpu", False),
             device=kwargs.get("device", None),
         )
+        end_time = time.time()
         task.update(
-            current=3, maximum=5, message=f"Omnipose: Predict labels (device={device})"
+            message=f"Omnipose: Model initialized in {end_time - start_time:.2f} s."
         )
+        task.export(model=model)
+        task.export(
+            previous_model_name=selected_model if selected_model else custom_model
+        )
+    else:
+        task.update(message="Omnipose: Model already initialized, reusing it.")
 
     # Check if we need to pre-process the dimensions of the image
     channel_axis = kwargs.get("channel_axis", None)
@@ -169,11 +192,7 @@ if appose_mode:
         channels = manage_channels_index(cell_channel_index, nuclei_channel_index)
     anisotropy = anisotropy if anisotropy > 0 else None
 
-    task.update(
-        current=0,
-        maximum=5,
-        message=f"Omnipose: Fetch input from Fiji ({input_image.shape})",
-    )
+    task.update(message=f"Omnipose: Input image shape: ({input_image.shape})")
 else:
     test_file = "testImg_XYT.tif"
     time_axis = 0
@@ -200,10 +219,9 @@ else:
     use_gpu = False
 
 use_gpu, device = get_torch_device(use_gpu)
-task.update(current=1, maximum=5, message=f"Omnipose: Start Omnipose (device={device})")
+task.update(message=f"Start Omnipose (device={device})")
 
-# task.update(
-#     message=f"Omnipose: Start Omnipose with channel_axis={channel_axis}, z_axis={z_axis}, time_axis={time_axis}")
+start_time = time.time()
 result = run_omnipose(
     input_image,
     kwargs={
@@ -228,19 +246,19 @@ result = run_omnipose(
         "niter": niter,
     },
 )
-
-task.update(current=4, maximum=5, message="Omnipose: Returning results")
+end_time = time.time()
+task.update(message=f"Omnipose: Prediction completed in {end_time - start_time:.2f} s.")
 
 # Massage outputs
 masks = result.masks
-describe(result, "result")
+# describe(result, "result")
 
 if compute_flows:
-    describe(result.flows, "flows")
+    # describe(result.flows, "flows")
     flows = result.flows[0].rgb
-    task.update(
-        message=f"Omnipose: Returning results (after flip: labels shape={masks.shape}, flows shape={flows.shape if compute_flows else 'N/A'})"
-    )
+    # task.update(
+    #     message=f"Omnipose: Returning results (after flip: labels shape={masks.shape}, flows shape={flows.shape if compute_flows else 'N/A'})"
+    # )
     # Move the last axis (C axis) to before Y and X. There might other dims before.
     flows = np.moveaxis(flows, -1, -3) if compute_flows else None
 
@@ -259,4 +277,4 @@ else:
         save_path = os.path.join(sample_folder, test_file.replace(".tif", "_flows.tif"))
         io.imsave(save_path, flows[0].astype(np.float32))
 
-task.update(current=5, maximum=5, message="Omnipose: Processing completed")
+task.update(message="Omnipose: Processing completed")
