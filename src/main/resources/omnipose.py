@@ -251,14 +251,13 @@ task.update(message=f"Omnipose: Prediction completed in {end_time - start_time:.
 
 # Massage outputs
 masks = result.masks
-# describe(result, "result")
 
 if compute_flows:
-    # describe(result.flows, "flows")
-    flows = result.flows[0].rgb
-    # task.update(
-    #     message=f"Omnipose: Returning results (after flip: labels shape={masks.shape}, flows shape={flows.shape if compute_flows else 'N/A'})"
-    # )
+    # Take the result.flows list and extract the tgb ndarray field, and concatenate them on a new axis.
+    flows = np.stack([flow.rgb for flow in result.flows], axis=0)
+    task.update(
+        message=f"Omnipose: Returning results (after flip: labels shape={masks.shape}, flows shape={flows.shape if compute_flows else 'N/A'})"
+    )
     # Move the last axis (C axis) to before Y and X. There might other dims before.
     flows = np.moveaxis(flows, -1, -3) if compute_flows else None
 
