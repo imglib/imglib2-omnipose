@@ -104,6 +104,9 @@ public class OmniposeRunner2 extends AbstractPixiRunner2
 
 	public void run( final OmniposeParameters params ) throws InterruptedException, TaskException
 	{
+		if ( inputShm == null )
+			throw new IllegalStateException( "The input image has not been set. Please execute setInput() first." );
+
 		// Shall we prepare the output flows shm?
 		if ( params.computeFlows )
 		{
