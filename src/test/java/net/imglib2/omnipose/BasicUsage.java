@@ -137,7 +137,7 @@ public class BasicUsage
 		// images are and the Omnipose runner are properly closed and cleaned up
 		// after use.
 
-		final OmniposeRunner2 runner = OmniposeRunner2.create( ApposeTaskListener.VOID, params.torchVersion );
+		final OmniposeRunner runner = OmniposeRunner.create( ApposeTaskListener.VOID, params.torchVersion );
 
 		try (runner)
 		{

@@ -26,7 +26,7 @@ public class EnvironmentTest
 				.computeFlows( true )
 				.channels( 0, 0 )
 				.build();
-		final OmniposeRunner2 runner = OmniposeRunner2.create( ApposeTaskListener.STD, params.torchVersion );
+		final OmniposeRunner runner = OmniposeRunner.create( ApposeTaskListener.STD, params.torchVersion );
 		try (runner)
 		{
 			runner.setInput( ArrayImgs.unsignedBytes( 128, 128 ), AxisInfo.XY );

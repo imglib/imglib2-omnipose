@@ -25,7 +25,7 @@ import net.imglib2.util.Util;
  * Specialized class that runs Omnipose. This class exists so that we can write
  * results in a pre-allocated output data structure.
  */
-public class OmniposeRunner2 extends AbstractPixiRunner2
+public class OmniposeRunner extends AbstractPixiRunner2
 {
 
 	private ShmImg< ? > inputShm;
@@ -40,14 +40,14 @@ public class OmniposeRunner2 extends AbstractPixiRunner2
 
 	private boolean needsRegen;
 
-	private OmniposeRunner2(
+	private OmniposeRunner(
 			final String envName,
 			final ApposeTaskListener listener )
 	{
 		super(
-				OmniposeRunner2.class.getResource( "/pixi.toml" ),
-				OmniposeRunner2.class.getResource( "/omnipose_utils.py" ),
-				OmniposeRunner2.class.getResource( "/omnipose.py" ),
+				OmniposeRunner.class.getResource( "/pixi.toml" ),
+				OmniposeRunner.class.getResource( "/omnipose_utils.py" ),
+				OmniposeRunner.class.getResource( "/omnipose.py" ),
 				envName,
 				listener );
 	}
@@ -214,10 +214,10 @@ public class OmniposeRunner2 extends AbstractPixiRunner2
 			outputFlowsShm.close();
 	}
 
-	public static OmniposeRunner2 create( final ApposeTaskListener listener, final String torchVersion )
+	public static OmniposeRunner create( final ApposeTaskListener listener, final String torchVersion )
 	{
 		final String envName = "omnipose-" + getTorchInstallSuffix( torchVersion );
-		return new OmniposeRunner2( envName, listener );
+		return new OmniposeRunner( envName, listener );
 	}
 
 	/**

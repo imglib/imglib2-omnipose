@@ -110,7 +110,7 @@ public class Omnipose
 		final long nt = axisInfo.nTimePoints( input );
 		final long nz = axisInfo.nZ( input );
 
-		try (OmniposeRunner2 runner = OmniposeRunner2.create( listener, params.torchVersion ))
+		try (OmniposeRunner runner = OmniposeRunner.create( listener, params.torchVersion ))
 		{
 			runner.init();
 

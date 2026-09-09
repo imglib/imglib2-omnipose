@@ -48,7 +48,7 @@ public class DemoPersistence
 				.build();
 
 		try (
-				final OmniposeRunner2 runner = OmniposeRunner2.create(
+				final OmniposeRunner runner = OmniposeRunner.create(
 						ApposeTaskListener.STD,
 						params1.torchVersion );)
 		{
