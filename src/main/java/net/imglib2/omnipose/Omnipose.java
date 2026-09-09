@@ -110,20 +110,7 @@ public class Omnipose
 		final long nt = axisInfo.nTimePoints( input );
 		final long nz = axisInfo.nZ( input );
 
-		final OmniposeRunner< T, R > runner;
-		if ( nt > 1 && nz > 1 )
-		{
-			// Drop time.
-			final AxisInfo axisInfoNoT = axisInfo.removeTimeDim();
-			final Dimensions dimsNotT = Views.hyperSlice( input, axisInfo.T(), 0 );
-			runner = OmniposeRunner.create( params, dimsNotT, axisInfoNoT, input.getType(), outputType, listener );
-		}
-		else
-		{
-			runner = OmniposeRunner.create( params, input, axisInfo, input.getType(), outputType, listener );
-		}
-
-		try (runner)
+		try (OmniposeRunner2 runner = OmniposeRunner2.create( listener, params.torchVersion ))
 		{
 			runner.init();
 
@@ -162,13 +149,14 @@ public class Omnipose
 				 * Process time-point by time-point.
 				 */
 
+				final AxisInfo axisInfoNoT = axisInfo.removeTimeDim();
 				for ( int t = 0; t < nt; t++ )
 				{
 					// Input reslice.
-					runner.setInput( Views.hyperSlice( input, axisInfo.T(), t ) );
+					runner.setInput( Views.hyperSlice( input, axisInfo.T(), t ), axisInfoNoT, outputType );
 
 					// Execute
-					runner.run();
+					runner.run( params );
 
 					// Labels output reslice.
 					runner.getOutputLabels( Views.hyperSlice( outputLabels, 3, t ) );
@@ -190,8 +178,8 @@ public class Omnipose
 			else
 			{
 				// Otherwise process in one go.
-				runner.setInput( input );
-				runner.run();
+				runner.setInput( input, axisInfo, outputType );
+				runner.run( params );
 				return runner.getOutput();
 			}
 		}
