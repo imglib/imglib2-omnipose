@@ -29,8 +29,8 @@ public class BasicUsage
 	{
 		try
 		{
-//			basicUsage( args );
-			outputType( args );
+			basicUsage( args );
+//			outputType( args );
 //			omniposeRunner( args );
 		}
 		catch ( final Exception e )
@@ -72,9 +72,13 @@ public class BasicUsage
 
 	public static < T extends RealType< T > & NativeType< T > > void basicUsage( final String[] args ) throws BuildException, IOException, InterruptedException, TaskException
 	{
+		final String filePath = "samples/20230331_washed_XY1.ome-1_stabilized_cropped-50-60.tif";
+//		final String filePath = "samples/20230331_washed_XY1.ome-1_stabilized_cropped-t61.tif";
+
 		// Demo preparation. We use IJ for this one.
 		ImageJ.main( args );
-		final ImagePlus imp = IJ.openImage( "samples/20230331_washed_XY1.ome-1_stabilized_cropped-t61.tif" );
+
+		final ImagePlus imp = IJ.openImage( filePath );
 		imp.show();
 		final Img< T > img = ImageJFunctions.wrap( imp );
 
