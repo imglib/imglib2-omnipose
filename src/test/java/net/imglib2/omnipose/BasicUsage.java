@@ -29,9 +29,9 @@ public class BasicUsage
 	{
 		try
 		{
-			basicUsage( args );
+//			basicUsage( args );
 			outputType( args );
-			omniposeRunner( args );
+//			omniposeRunner( args );
 		}
 		catch ( final Exception e )
 		{
@@ -65,6 +65,9 @@ public class BasicUsage
 		final RandomAccessibleInterval< UnsignedIntType > labels = output.labels;
 		@SuppressWarnings( "unused" )
 		final RandomAccessibleInterval< UnsignedByteType > flows = output.flows;
+
+		ImageJFunctions.show( output.labels ).setTitle( "Omnipose output" );
+		ImageJFunctions.show( output.flows ).setTitle( "Omnipose flows" );
 	}
 
 	public static < T extends RealType< T > & NativeType< T > > void basicUsage( final String[] args ) throws BuildException, IOException, InterruptedException, TaskException
@@ -134,17 +137,10 @@ public class BasicUsage
 		// images are and the Omnipose runner are properly closed and cleaned up
 		// after use.
 
-		final OmniposeRunner< UnsignedByteType, UnsignedShortType > runner = OmniposeRunner.create(
-				params,
-				inputImages.get( 0 ),
-				axes,
-				inputImages.get( 0 ).getType(),
-				ApposeTaskListener.VOID );
+		final OmniposeRunner2 runner = OmniposeRunner2.create( ApposeTaskListener.VOID, params.torchVersion );
 
 		try (runner)
 		{
-			System.out.println( String.format( "Runner and placeholders creation time: %.2f seconds", ( System.currentTimeMillis() - startTime ) / 1000. ) );
-
 			// Initialize the runner. This will deploy the Python environment
 			// and script if not already done, and prepare everything for
 			// running Omnipose.
@@ -160,13 +156,13 @@ public class BasicUsage
 
 				// Copy the input image to the tmp location.
 				startTime = System.currentTimeMillis();
-				runner.setInput( input );
+				runner.setInput( input, axes );
 				System.out.println( String.format( "Input copy time: %.2f seconds", ( System.currentTimeMillis() - startTime ) / 1000. ) );
 
 				// Run Omnipose. The results will be written in the tmpLabels
 				// and tmpFlows images.
 				startTime = System.currentTimeMillis();
-				runner.run();
+				runner.run( params );
 				System.out.println( String.format( "Omnipose run time: %.2f seconds", ( System.currentTimeMillis() - startTime ) / 1000. ) );
 
 				// Copy the output to a new image.
