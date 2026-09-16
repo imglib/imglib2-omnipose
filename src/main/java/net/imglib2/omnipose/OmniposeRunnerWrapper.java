@@ -25,14 +25,14 @@ import net.imglib2.view.Views;
  *
  * @author Jean-Yves Tinevez
  */
-public class RunnerWrapper
+public class OmniposeRunnerWrapper
 {
 
 	private final OmniposeRunner runner;
 
 	private final DoubleConsumer progressListener;
 
-	public RunnerWrapper( final OmniposeRunner runner, final DoubleConsumer progressListener )
+	public OmniposeRunnerWrapper( final OmniposeRunner runner, final DoubleConsumer progressListener )
 	{
 		this.runner = runner;
 		this.progressListener = progressListener;
