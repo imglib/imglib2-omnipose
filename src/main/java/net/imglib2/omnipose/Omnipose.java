@@ -5,19 +5,13 @@ import java.io.IOException;
 import org.apposed.appose.BuildException;
 import org.apposed.appose.TaskException;
 
-import net.imglib2.Dimensions;
-import net.imglib2.FinalDimensions;
 import net.imglib2.RandomAccessibleInterval;
 import net.imglib2.appose.util.ApposeTaskListener;
 import net.imglib2.appose.util.AxisInfo;
-import net.imglib2.img.Img;
 import net.imglib2.type.NativeType;
 import net.imglib2.type.numeric.IntegerType;
 import net.imglib2.type.numeric.RealType;
-import net.imglib2.type.numeric.integer.UnsignedByteType;
 import net.imglib2.type.numeric.integer.UnsignedShortType;
-import net.imglib2.util.Util;
-import net.imglib2.view.Views;
 
 public class Omnipose
 {
@@ -113,67 +107,10 @@ public class Omnipose
 		try (OmniposeRunner runner = OmniposeRunner.create( listener, params.torchVersion ))
 		{
 			runner.init();
-
 			if ( nt > 1 && nz > 1 )
 			{
-				// Placeholder for full labels output: XYZT.
-				final long[] inputDims = input.dimensionsAsLongArray();
-				final long[] ldims = new long[] {
-						inputDims[ axisInfo.X() ],
-						inputDims[ axisInfo.Y() ],
-						inputDims[ axisInfo.Z() ],
-						inputDims[ axisInfo.T() ] };
-				final Dimensions labelsDim = FinalDimensions.wrap( ldims );
-				final Img< R > outputLabels = Util.getArrayOrCellImgFactory( labelsDim, outputType ).create( ldims );
-
-				// Placeholder for flows output if needed.
-				final Img< UnsignedByteType > outputFlows;
-				if ( params.computeFlows )
-				{
-					// XYCZT, with nC = 3 for the 3 flows.
-					final long[] fdims = new long[] {
-							ldims[ 0 ],
-							ldims[ 1 ],
-							3,
-							ldims[ 2 ],
-							ldims[ 3 ] };
-					// 3 channels in the flows output
-					outputFlows = Util.getArrayOrCellImgFactory( labelsDim, new UnsignedByteType() ).create( fdims );
-				}
-				else
-				{
-					outputFlows = null;
-				}
-
-				/*
-				 * Process time-point by time-point.
-				 */
-
-				final AxisInfo axisInfoNoT = axisInfo.removeTimeDim();
-				for ( int t = 0; t < nt; t++ )
-				{
-					// Input reslice.
-					runner.setInput( Views.hyperSlice( input, axisInfo.T(), t ), axisInfoNoT, outputType );
-
-					// Execute
-					runner.run( params );
-
-					// Labels output reslice.
-					runner.getOutputLabels( Views.hyperSlice( outputLabels, 3, t ) );
-
-					// Flows output reslice.
-					if ( params.computeFlows )
-						runner.getOutputFlows( Views.hyperSlice( outputFlows, 4, t ) );
-				}
-
-				// Return all time-points.
-				@SuppressWarnings( { "rawtypes", "unchecked" } )
-				final OmniposeOutput< R > out = new OmniposeOutput(
-						outputLabels,
-						axisInfo.removeChannelDim(),
-						outputFlows,
-						( axisInfo.C() < 0 ) ? axisInfo.insertChannelDim( 2 ) : axisInfo );
-				return out;
+				final OmniposeRunnerWrapper wrapper = new OmniposeRunnerWrapper( runner, d -> {} );
+				return wrapper.run( input, axisInfo, outputType, params );
 			}
 			else
 			{
